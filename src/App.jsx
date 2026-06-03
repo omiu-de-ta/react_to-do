@@ -1,77 +1,54 @@
 import { useState, useEffect } from "react";
 
-// ========================================
-// ユーティリティ関数
-// ========================================
+// ==============================
+// APIのURL（バックエンドのアドレス）
+// ==============================
+const API_URL = "http://localhost:3001";
 
-// 期限の状態を判定する（元のgetDeadlineStatusと同じロジック）
+// ==============================
+// ユーティリティ
+// ==============================
+
 function getDeadlineStatus(deadline) {
   if (!deadline) return null;
-
   const today = new Date();
   const d = new Date(deadline);
-
   today.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
-
-  if (d < today) return "overdue"; // 過去 → 赤
-  if (d.getTime() === today.getTime()) return "today"; // 今日 → オレンジ
-
+  if (d < today) return "overdue";
+  if (d.getTime() === today.getTime()) return "today";
   return "future";
 }
 
-// localStorageの読み書き（元のStorageクラスと同じロジック）
-function loadFromStorage() {
-  const data = localStorage.getItem("tasks");
-  try {
-    return data ? JSON.parse(data) : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function saveToStorage(tasks) {
-  localStorage.setItem("tasks", JSON.stringify(tasks));
-}
-
-// ========================================
-// 子コンポーネント：タスク1件分
-// ========================================
+// ==============================
+// タスク1件分のコンポーネント
+// ==============================
 
 function TaskItem({ task, onToggle, onDelete, onEdit }) {
-  // 編集中かどうかを管理するstate
   const [isEditing, setIsEditing] = useState(false);
-  // 編集中のテキストと期限を管理するstate
   const [editText, setEditText] = useState(task.text);
   const [editDeadline, setEditDeadline] = useState(task.deadline || "");
 
-  // 保存ボタン
   function handleSave() {
     if (editText.trim() === "") {
       alert("タスクを入力してください");
       return;
     }
-    onEdit(task.id, editText, editDeadline);
+    onEdit(task._id, editText, editDeadline);
     setIsEditing(false);
   }
 
-  // キャンセルボタン：入力値を元に戻す
   function handleCancel() {
     setEditText(task.text);
     setEditDeadline(task.deadline || "");
     setIsEditing(false);
   }
 
-  // 期限の色スタイルを決める
   const status = getDeadlineStatus(task.deadline);
   const deadlineStyle =
-    status === "overdue"
-      ? { color: "#ff3b30", fontWeight: "bold" }
-      : status === "today"
-      ? { color: "#ff9500", fontWeight: "bold" }
-      : {};
+    status === "overdue" ? { color: "#ff3b30", fontWeight: "bold" } :
+    status === "today"   ? { color: "#ff9500", fontWeight: "bold" } : {};
 
-  // 編集モードのUI
   if (isEditing) {
     return (
       <li style={styles.li}>
@@ -98,10 +75,8 @@ function TaskItem({ task, onToggle, onDelete, onEdit }) {
     );
   }
 
-  // 通常モードのUI
   return (
     <li style={styles.li}>
-      {/* タスク本文（クリックで完了トグル） */}
       <span
         style={{
           ...styles.taskText,
@@ -109,14 +84,12 @@ function TaskItem({ task, onToggle, onDelete, onEdit }) {
           ...(!task.completed ? deadlineStyle : {}),
           cursor: "pointer",
         }}
-        onClick={() => onToggle(task.id)}
+        onClick={() => onToggle(task._id, task.completed)}
       >
         {task.completed ? "☑ " : "□ "}
         {task.text}
         {task.deadline && ` 期限: ${task.deadline}`}
       </span>
-
-      {/* 編集・削除ボタン */}
       <div style={{ display: "flex", gap: "6px" }}>
         <button
           style={{ ...styles.button, background: "#4f8cff", color: "white" }}
@@ -126,7 +99,7 @@ function TaskItem({ task, onToggle, onDelete, onEdit }) {
         </button>
         <button
           style={{ ...styles.button, background: "#ff6b6b", color: "white" }}
-          onClick={() => onDelete(task.id)}
+          onClick={() => onDelete(task._id)}
         >
           削除
         </button>
@@ -135,75 +108,94 @@ function TaskItem({ task, onToggle, onDelete, onEdit }) {
   );
 }
 
-// ========================================
+// ==============================
 // メインコンポーネント
-// ========================================
+// ==============================
 
 export default function App() {
-  // タスク一覧のstate（localStorageから初期値を読み込む）
-  const [tasks, setTasks] = useState(() => loadFromStorage());
-  // 入力フォームのstate
+  const [tasks, setTasks] = useState([]);
   const [taskInput, setTaskInput] = useState("");
   const [dateInput, setDateInput] = useState("");
-  // フィルターのstate
   const [filter, setFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // tasksが変わるたびにlocalStorageへ保存
+  // 起動時にサーバーからタスクを取得
   useEffect(() => {
-    saveToStorage(tasks);
-  }, [tasks]);
+    fetch(`${API_URL}/tasks`)
+      .then((res) => res.json())
+      .then((data) => {
+        setTasks(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("サーバーに接続できません。バックエンドが起動しているか確認してください。");
+        setLoading(false);
+      });
+  }, []);
 
-  // タスク追加（元のaddTask + イベントリスナーのロジック）
-  function handleAdd() {
+  // タスク追加
+  async function handleAdd() {
     if (taskInput.trim() === "") {
       alert("タスクを入力してください");
       return;
     }
-    const newTask = {
-      id: Date.now(),
-      text: taskInput,
-      completed: false,
-      deadline: dateInput,
-    };
+    const res = await fetch(`${API_URL}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: taskInput, deadline: dateInput }),
+    });
+    const newTask = await res.json();
     setTasks([...tasks, newTask]);
-    setFilter("all"); // 追加したら「すべて」に戻す
+    setFilter("all");
     setTaskInput("");
     setDateInput("");
   }
 
-  // 完了トグル（元のtoggleTaskのロジック）
-  function handleToggle(id) {
-    setTasks(
-      tasks.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
-    );
+  // 完了トグル
+  async function handleToggle(id, currentCompleted) {
+    const res = await fetch(`${API_URL}/tasks/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: !currentCompleted }),
+    });
+    const updated = await res.json();
+    setTasks(tasks.map((t) => (t._id === id ? updated : t)));
   }
 
-  // 削除（元のdeleteTaskのロジック）
-  function handleDelete(id) {
-    setTasks(tasks.filter((task) => task.id !== id));
+  // 削除
+  async function handleDelete(id) {
+    await fetch(`${API_URL}/tasks/${id}`, { method: "DELETE" });
+    setTasks(tasks.filter((t) => t._id !== id));
   }
 
-  // 編集（元のeditTaskのロジック）
-  function handleEdit(id, newText, newDeadline) {
-    setTasks(
-      tasks.map((task) =>
-        task.id === id ? { ...task, text: newText, deadline: newDeadline } : task
-      )
-    );
+  // 編集
+  async function handleEdit(id, newText, newDeadline) {
+    const res = await fetch(`${API_URL}/tasks/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: newText, deadline: newDeadline }),
+    });
+    const updated = await res.json();
+    setTasks(tasks.map((t) => (t._id === id ? updated : t)));
   }
 
-  // フィルタリング（元のshouldSkipのロジック）
   const filteredTasks = tasks.filter((task) => {
-    if (filter === "active") return !task.completed;
+    if (filter === "active")    return !task.completed;
     if (filter === "completed") return task.completed;
-    return true; // "all"
+    return true;
   });
 
   return (
     <div style={styles.container}>
       <h1 style={styles.h1}>タスク管理</h1>
+
+      {/* エラー表示 */}
+      {error && (
+        <p style={{ color: "#ff3b30", textAlign: "center", fontSize: "14px" }}>
+          ⚠️ {error}
+        </p>
+      )}
 
       {/* 入力エリア */}
       <div style={styles.inputArea}>
@@ -213,7 +205,6 @@ export default function App() {
           placeholder="タスクを入力"
           value={taskInput}
           onChange={(e) => setTaskInput(e.target.value)}
-          // Enterキーでも追加できるようにする
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
         />
         <input
@@ -235,10 +226,7 @@ export default function App() {
         {["all", "active", "completed"].map((f) => (
           <button
             key={f}
-            style={{
-              ...styles.button,
-              ...(filter === f ? styles.activeFilter : {}),
-            }}
+            style={{ ...styles.button, ...(filter === f ? styles.activeFilter : {}) }}
             onClick={() => setFilter(f)}
           >
             {f === "all" ? "すべて" : f === "active" ? "未完了" : "完了"}
@@ -248,27 +236,23 @@ export default function App() {
 
       {/* タスクリスト */}
       <ul style={styles.ul}>
-        {filteredTasks.map((task) => (
+        {loading && <p style={{ textAlign: "center", color: "#aaa" }}>読み込み中...</p>}
+        {!loading && filteredTasks.map((task) => (
           <TaskItem
-            key={task.id}
+            key={task._id}
             task={task}
             onToggle={handleToggle}
             onDelete={handleDelete}
             onEdit={handleEdit}
           />
         ))}
-        {filteredTasks.length === 0 && (
+        {!loading && filteredTasks.length === 0 && (
           <p style={{ textAlign: "center", color: "#aaa" }}>タスクはありません</p>
         )}
       </ul>
     </div>
   );
 }
-
-// ========================================
-// スタイル（元のstyle.cssと対応）
-// ========================================
-
 const styles = {
   container: {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -278,21 +262,9 @@ const styles = {
     color: "#333",
     padding: "0 16px",
   },
-  h1: {
-    textAlign: "center",
-    marginBottom: "20px",
-  },
-  inputArea: {
-    display: "flex",
-    gap: "6px",
-    flexWrap: "wrap",
-    marginBottom: "10px",
-  },
-  filterArea: {
-    display: "flex",
-    gap: "6px",
-    marginBottom: "10px",
-  },
+  h1: { textAlign: "center", marginBottom: "20px" },
+  inputArea: { display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" },
+  filterArea: { display: "flex", gap: "6px", marginBottom: "10px" },
   input: {
     padding: "10px",
     width: "65%",
@@ -309,17 +281,9 @@ const styles = {
     borderRadius: "8px",
     background: "#e0e0e0",
     fontSize: "14px",
-    transition: "background 0.2s",
   },
-  activeFilter: {
-    background: "#4f8cff",
-    color: "white",
-  },
-  ul: {
-    padding: 0,
-    marginTop: "20px",
-    listStyle: "none",
-  },
+  activeFilter: { background: "#4f8cff", color: "white" },
+  ul: { padding: 0, marginTop: "20px", listStyle: "none" },
   li: {
     margin: "10px 0",
     padding: "12px 14px",
@@ -330,13 +294,6 @@ const styles = {
     alignItems: "center",
     boxShadow: "0 4px 10px rgba(0,0,0,0.05)",
   },
-  taskText: {
-    flex: 1,
-    marginRight: "10px",
-    wordBreak: "break-word",
-  },
-  completed: {
-    textDecoration: "line-through",
-    color: "#aaa",
-  },
+  taskText: { flex: 1, marginRight: "10px", wordBreak: "break-word" },
+  completed: { textDecoration: "line-through", color: "#aaa" },
 };
