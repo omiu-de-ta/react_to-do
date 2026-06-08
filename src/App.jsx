@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 // ==============================
 // APIのURL（バックエンドのアドレス）
 // ==============================
-const API_URL = "http://localhost:3001";
+const API_URL = "https://react-todo-backend-kl0k.onrender.com";
 
 // ==============================
 // ユーティリティ
