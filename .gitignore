@@ -26,4 +26,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.development
+.env.production
 backend/node_modules

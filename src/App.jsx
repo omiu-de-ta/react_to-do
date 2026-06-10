@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 // ==============================
 // APIのURL（バックエンドのアドレス）
 // ==============================
-const API_URL = "https://react-todo-backend-kl0k.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL;
 
 // ==============================
 // ユーティリティ
@@ -134,54 +134,80 @@ export default function App() {
       });
   }, []);
 
-  // タスク追加
+  // タスク追加（POST /tasks）
   async function handleAdd() {
     if (taskInput.trim() === "") {
       alert("タスクを入力してください");
       return;
     }
-    const res = await fetch(`${API_URL}/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: taskInput, deadline: dateInput }),
-    });
-    const newTask = await res.json();
-    setTasks([...tasks, newTask]);
-    setFilter("all");
-    setTaskInput("");
-    setDateInput("");
+    try {
+      const res = await fetch(`${API_URL}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: taskInput, deadline: dateInput }),
+      });
+      if (!res.ok) throw new Error("追加に失敗しました");
+      const newTask = await res.json();
+      setTasks([...tasks, newTask]);
+      setFilter("all");
+      setTaskInput("");
+      setDateInput("");
+    } catch (err) {
+      console.error(err);
+      alert("タスクの追加に失敗しました。再度お試しください。");
+    }
   }
+  
 
-  // 完了トグル
+  // 完了トグル（PUT /tasks/:id）
   async function handleToggle(id, currentCompleted) {
-    const res = await fetch(`${API_URL}/tasks/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed: !currentCompleted }),
-    });
-    const updated = await res.json();
-    setTasks(tasks.map((t) => (t._id === id ? updated : t)));
+    try {
+      const res = await fetch(`${API_URL}/tasks/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: !currentCompleted }),
+      });
+      if (!res.ok) throw new Error("更新に失敗しました");
+      const updated = await res.json();
+      setTasks(tasks.map((t) => (t._id === id ? updated : t)));
+    } catch (err) {
+      console.error(err);
+      alert("完了状態の更新に失敗しました。再度お試しください。");
+    }
   }
 
-  // 削除
+  // 削除（DELETE /tasks/:id）
   async function handleDelete(id) {
-    await fetch(`${API_URL}/tasks/${id}`, { method: "DELETE" });
-    setTasks(tasks.filter((t) => t._id !== id));
+    try {
+      const res = await fetch(`${API_URL}/tasks/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("削除に失敗しました");
+     setTasks(tasks.filter((t) => t._id !== id));
+    } catch (err) {
+      console.error(err);
+      alert("タスクの削除に失敗しました。再度お試しください。");
+    }
   }
 
-  // 編集
+  // 編集（PUT /tasks/:id）
   async function handleEdit(id, newText, newDeadline) {
-    const res = await fetch(`${API_URL}/tasks/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: newText, deadline: newDeadline }),
-    });
-    const updated = await res.json();
-    setTasks(tasks.map((t) => (t._id === id ? updated : t)));
+    try {
+      const res = await fetch(`${API_URL}/tasks/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: newText, deadline: newDeadline }),
+      });
+      if (!res.ok) throw new Error("編集に失敗しました");
+      const updated = await res.json();
+      setTasks(tasks.map((t) => (t._id === id ? updated : t)));
+    } catch (err) {
+      console.error(err);
+      alert("タスクの編集に失敗しました。再度お試しください。");
+    }
   }
 
+  // ✅ handleEditの}の直後、returnの直前に追加
   const filteredTasks = tasks.filter((task) => {
-    if (filter === "active")    return !task.completed;
+    if (filter === "active") return !task.completed;
     if (filter === "completed") return task.completed;
     return true;
   });
