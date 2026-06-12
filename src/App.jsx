@@ -205,7 +205,7 @@ export default function App() {
     }
   }
 
-  // ✅ handleEditの}の直後、returnの直前に追加
+  // フィルタリング
   const filteredTasks = tasks.filter((task) => {
     if (filter === "active") return !task.completed;
     if (filter === "completed") return task.completed;
